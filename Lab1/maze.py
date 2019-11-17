@@ -7,12 +7,13 @@ from IPython import display
 methods = ['DynProg', 'ValIter'];
 
 # Some colours
+RED          = '#FF0000';
 LIGHT_RED    = '#FFC4CC';
 LIGHT_GREEN  = '#95FD99';
 BLACK        = '#000000';
 WHITE        = '#FFFFFF';
 LIGHT_PURPLE = '#E8D0FF';
- = '#FAE0C3';
+LIGHT_ORANGE = '#FAE0C3';
 
 class Maze:
 
@@ -34,15 +35,16 @@ class Maze:
 
     # Reward values
     STEP_REWARD = -1
-    GOAL_REWARD = 0
+    GOAL_REWARD = 3
     IMPOSSIBLE_REWARD = -100
-    MINOUTAUR_REWARD = -100
-
+    MINOUTAUR_REWARD = -80
+    NEAR_MINOUTAUR_REWARD = -20
 
     def __init__(self, maze, weights=None, random_rewards=False):
         """ Constructor of the environment Maze.
         """
         self.maze                     = maze;
+        self.maze_origin              = maze;
         self.actions                  = self.__actions();
         self.states, self.map         = self.__states();
         self.n_actions                = len(self.actions);
@@ -68,9 +70,9 @@ class Maze:
         s = 0;
         for i in range(self.maze.shape[0]):
             for j in range(self.maze.shape[1]):
+                if self.maze[i,j] == 3:
+                    self.minotaur = (i,j)
                 if self.maze[i,j] != 1:
-                    if self.maze[i,j] == 3 or self.maze[i,j] == 5:
-                        self.minotaur = (i,j)
                     states[s] = (i,j);
                     map[(i,j)] = s;
                     s += 1;
@@ -89,16 +91,33 @@ class Maze:
         hitting_maze_walls =  (row == -1) or (row == self.maze.shape[0]) or \
                               (col == -1) or (col == self.maze.shape[1]) or \
                               (self.maze[row,col] == 1)
-        #getting_eaten_by_minotaur = (self.maze[row,col] == 3) or (self.maze[row,col] == 5;
                                                                   
         # Based on the impossiblity check return the next state.
         if hitting_maze_walls:
             return state;
-        #elif getting_eaten_by_minotaur
-        #    return state;
         else:
             return self.map[(row, col)];
 
+        
+    def __move_minotaur(self, state, action):
+        """ Makes a step in the maze, given a current position and an action.
+            If the action STAY or an inadmissible action is used, the agent stays in place.
+
+            :return tuple next_cell: Position (x,y) on the maze that agent transitions to.
+        """
+        # Compute the future position given current (state, action)
+        row = state[0] + self.actions[action][0];
+        col = state[1] + self.actions[action][1];
+        # Is the future position an impossible one ?
+        hitting_maze_walls =  (row == -1) or (row == self.maze.shape[0]) or \
+                              (col == -1) or (col == self.maze.shape[1]) 
+                                                                  
+        # Based on the impossiblity check return the next state.
+        if hitting_maze_walls:
+            return state;
+        else:
+            return (row,col);
+        
     def __transitions(self):
         """ Computes the transition probabilities for every state action pair.
             :return numpy.tensor transition probabilities: tensor of transition
@@ -125,15 +144,21 @@ class Maze:
             for s in range(self.n_states):
                 for a in range(self.n_actions):
                     next_s = self.__move(s,a);
+                    dx = np.abs(self.states[next_s][0] - self.minotaur[0]);
+                    dy = np.abs(self.states[next_s][1] + self.minotaur[1]);
+                    moving_range_of_minotaur =  ((dx == 1) and (dy == 0)) or ((dx == 0) and (dy == 1));
                     # Rewrd for hitting a wall
                     if s == next_s and a != self.STAY:
                         rewards[s,a] = self.IMPOSSIBLE_REWARD;
                     # Reward for meeting the minotaur
-                    elif self.maze[self.states[next_s]] == 3 or self.maze[self.states[next_s]] == 5:
-                        rewards[s,a] = self.IMPOSSIBLE_REWARD;
+                    elif self.maze[self.states[next_s]] == 3:
+                        rewards[s,a] = self.MINOUTAUR_REWARD;
                     # Reward for reaching the exit
                     elif self.maze[self.states[next_s]] == 2:
                         rewards[s,a] = self.GOAL_REWARD;
+                    # Reward for being in the moving range of the minotaur
+                    elif moving_range_of_minotaur:
+                        rewards[s,a] = self.NEAR_MINOUTAUR_REWARD;   
                     # Reward for taking a step to an empty cell that is not the exit
                     else:
                         rewards[s,a] = self.STEP_REWARD;
@@ -155,9 +180,18 @@ class Maze:
                      i,j = self.states[next_s];
                      # Simply put the reward as the weights o the next state.
                      rewards[s,a] = weights[i][j];
-
         return rewards;
-
+    
+    def update(self):
+        action = round(np.random.rand()*4);
+        if self.maze_origin[self.minotaur] != 3:
+            self.maze[self.minotaur] = self.maze_origin[self.minotaur];
+        else:
+            self.maze[self.minotaur] = 0;
+        self.minotaur = self.__move_minotaur(self.minotaur, action);
+        self.maze[self.minotaur] = 3;   
+        self.rewards = self.__rewards();
+    
     def simulate(self, start, policy, method):
         if method not in methods:
             error = 'ERROR: the argument method must be in {}'.format(methods);
@@ -216,6 +250,8 @@ class Maze:
         print('The rewards:')
         print(self.rewards)
 
+        
+        
 def dynamic_programming(env, horizon):
     """ Solves the shortest path problem using dynamic programming
         :input Maze env           : The maze environment in which we seek to
@@ -321,7 +357,7 @@ def value_iteration(env, gamma, epsilon):
 
 def draw_maze(maze):
     # Map a color to each cell in the maze
-    col_map = {0: WHITE, 1: BLACK, 2: LIGHT_GREEN, 3: LIGHT_RED, 5: LIGHT_ORANGE, -6: LIGHT_RED, -1: LIGHT_RED};
+    col_map = {0: WHITE, 1: BLACK, 2: LIGHT_GREEN, 3: RED, 5: LIGHT_ORANGE, -6: LIGHT_RED, -1: LIGHT_RED};
 
     # Give a color to each cell
     rows,cols    = maze.shape;
@@ -358,7 +394,7 @@ def draw_maze(maze):
 def animate_solution(maze, path):
 
     # Map a color to each cell in the maze
-    col_map = {0: WHITE, 1: BLACK, 2: LIGHT_GREEN, -6: LIGHT_RED, -1: LIGHT_RED};
+    col_map = {0: WHITE, 1: BLACK, 2: LIGHT_GREEN, 3: RED, 5: LIGHT_ORANGE, -6: LIGHT_RED, -1: LIGHT_RED};
 
     # Size of the maze
     rows,cols = maze.shape;
