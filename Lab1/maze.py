@@ -44,7 +44,7 @@ class Maze:
         """ Constructor of the environment Maze.
         """
         self.maze                     = maze;
-        self.maze_origin              = maze;
+        self.maze_origin              = np.copy(maze);
         self.actions                  = self.__actions();
         self.states, self.map         = self.__states();
         self.n_actions                = len(self.actions);
@@ -90,8 +90,7 @@ class Maze:
         # Is the future position an impossible one ?
         hitting_maze_walls =  (row == -1) or (row == self.maze.shape[0]) or \
                               (col == -1) or (col == self.maze.shape[1]) or \
-                              (self.maze[row,col] == 1)
-                                                                  
+                              (self.maze_origin[row,col] == 1)
         # Based on the impossiblity check return the next state.
         if hitting_maze_walls:
             return state;
