@@ -390,7 +390,7 @@ def draw_maze(maze):
         cell.set_height(1.0/rows);
         cell.set_width(1.0/cols);
 
-def animate_solution(maze, path):
+def animate_solution(maze, path, minotaur):
 
     # Map a color to each cell in the maze
     col_map = {0: WHITE, 1: BLACK, 2: LIGHT_GREEN, 3: RED, 5: LIGHT_ORANGE, -6: LIGHT_RED, -1: LIGHT_RED};
@@ -409,7 +409,7 @@ def animate_solution(maze, path):
 
     # Give a color to each cell
     colored_maze = [[col_map[maze[j,i]] for i in range(cols)] for j in range(rows)];
-
+    
     # Create figure of the size of the maze
     fig = plt.figure(1, figsize=(cols,rows))
 
@@ -428,9 +428,12 @@ def animate_solution(maze, path):
 
 
     # Update the color at each frame
+    temp = 0
     for i in range(len(path)):
         grid.get_celld()[(path[i])].set_facecolor(LIGHT_ORANGE)
         grid.get_celld()[(path[i])].get_text().set_text('Player')
+        grid.get_celld()[(minotaur[i])].set_facecolor(RED)
+        grid.get_celld()[(minotaur[i])].get_text().set_text('Minotaur')
         if i > 0:
             if path[i] == path[i-1]:
                 grid.get_celld()[(path[i])].set_facecolor(LIGHT_GREEN)
@@ -438,6 +441,17 @@ def animate_solution(maze, path):
             else:
                 grid.get_celld()[(path[i-1])].set_facecolor(col_map[maze[path[i-1]]])
                 grid.get_celld()[(path[i-1])].get_text().set_text('')
+            
+            if minotaur[i] != minotaur[i-1]:
+                if temp == 0:
+                    grid.get_celld()[(minotaur[i-1])].set_facecolor(col_map[maze[0,0]])
+                    maze[minotaur[i-1]] = 0
+                    grid.get_celld()[(minotaur[i-1])].get_text().set_text('')
+                    temp = temp +1
+                else:
+                    grid.get_celld()[(minotaur[i-1])].set_facecolor(col_map[maze[minotaur[i-1]]])
+                    grid.get_celld()[(minotaur[i-1])].get_text().set_text('')
+
         display.display(fig)
         display.clear_output(wait=True)
         time.sleep(1)
