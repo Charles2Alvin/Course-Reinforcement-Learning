@@ -280,16 +280,20 @@ class Maze:
         # 0 if eaten
         # 1 if escaped to the exit
         # 2 if only survived the T time steps
-        samples = list();
+        samples = np.zeros(nr);
         for j in range(nr):
             path = self.simulate(start, policy, method);
             if path[-1][0:2] == path[-1][2:4]:
-                samples.append(0)
+                samples[j] = 0
             elif self.maze[path[-1][0:2]] == 2:
-                samples.append(1)
+                samples[j] = 1
             else:
-                samples.append(2)
-        return samples
+                samples[j] = 2
+
+        eaten = sum(samples==0) / nr;
+        exited = sum(samples==1) / nr;
+        survived = sum(samples==2) / nr;
+        return (eaten, exited, survived, samples)
 
     def show(self):
         print('The states are :')
