@@ -4,7 +4,7 @@ import time
 from IPython import display
 
 # Implemented methods
-methods = ['DynProg', 'ValIter', 'PolIter'];
+methods = ['DynProg', 'ValIter'];
 
 # Some colours
 RED          = '#FF0000';
@@ -37,8 +37,7 @@ class Maze:
     STEP_REWARD = -1
     GOAL_REWARD = 0
     IMPOSSIBLE_REWARD = -100
-    MINOUTAUR_REWARD = -80
-    NEAR_MINOUTAUR_REWARD = -20
+    MINOUTAUR_REWARD = -30
 
     def __init__(self, maze, weights=None, random_rewards=False):
         """ Constructor of the environment Maze.
@@ -108,6 +107,37 @@ class Maze:
         else:
             return self.map[(row, col, k, l)];
         
+    def __move2(self, state, action):
+        """ Makes a step in the maze, given a current position and an action.
+            If the action STAY or an inadmissible action is used, the agent stays in place.
+
+            :return tuple next_cell: Position (x,y) on the maze that agent transitions to.
+        """
+        # Compute the future position given current (state, action)
+        i = self.states[state][0];
+        j = self.states[state][1];
+        k = self.states[state][2];
+        l = self.states[state][3];
+        
+        # Have we arrived at the exit(terminal state) ?
+        arrived_exit = (self.maze[i,j] == 2);
+        
+        # Have we bin eaten by the minotaur(terminal state)
+        eaten = (i == k) and (j == l);
+        
+        # Is the future position an impossible one ?
+        row = k + self.actions[action][0];
+        col = l + self.actions[action][1];
+        
+        hitting_maze_walls =  (row == -1) or (row == self.maze.shape[0]) or \
+                              (col == -1) or (col == self.maze.shape[1])
+        
+        # Based on the impossiblity check return the next state.
+        if hitting_maze_walls or arrived_exit or eaten:
+            return state;
+        else:
+            return self.map[(i,j, row, col)];
+        
     def __move_minotaur(self, state):
         """ Makes a step in the maze, given a current position and an action.
             If the action STAY or an inadmissible action is used, the agent stays in place.
@@ -156,7 +186,9 @@ class Maze:
         for s in range(self.n_states):
             for a in range(self.n_actions):
                 next_s = self.__move(s,a);
-                transition_probabilities[next_s, s, a] = 1;
+                for a_hat in range(self.n_actions):
+                    next_s_hat = self.__move(next_s,a_hat);
+                    transition_probabilities[next_s_hat, s, a] += 1/self.n_actions
         return transition_probabilities;
 
     def __rewards(self, weights=None, random_rewards=None):
@@ -167,41 +199,33 @@ class Maze:
         if weights is None:
             for s in range(self.n_states):
                 for a in range(self.n_actions):
-                    next_s = self.__move(s,a);
-                    # Calculating if next state is in moving range of minotaur
-                    dx = np.abs(self.states[next_s][0] - self.states[next_s][2]);
-                    dy = np.abs(self.states[next_s][1] - self.states[next_s][3]);
-                    moving_range_of_minotaur =  ((dx == 1) and (dy == 0)) or ((dx == 0) and (dy == 1));
-                    
+                    next_s = self.__move(s,a);                    
                     i = self.states[next_s][0];
                     j = self.states[next_s][1];
-                    k = self.states[next_s][2];
-                    l = self.states[next_s][3];
+                    k = self.states[next_s][2]
+                    l = self.states[next_s][3]
+                    # If terminal state or hitting wall
                     if s == next_s and a != self.STAY:
                         # Reward for exiting the maze
-                        if (i == k) and (j == l):
-                            rewards[s,a] = self.MINOUTAUR_REWARD;
+                        if (self.maze[i,j] == 2):
                             #rewards[s,a] = 0
-                        elif (self.maze[i,j] == 2):
-                            rewards[s,a] = self.GOAL_REWARD;
-                            #rewards[s,a] = 0
+                            rewards[s,a] = self.GOAL_REWARD
                         # Reward for getting eaten from minotaur
-
+                        elif (i == k) and (j == l):
+                            #rewards[s,a] = 0
+                            rewards[s,a] = self.MINOUTAUR_REWARD
                         # Reward for hitting a wall
                         else:
-                            rewards[s,a] = self.IMPOSSIBLE_REWARD;
+                            rewards[s,a] = self.IMPOSSIBLE_REWARD
                     # Reward for getting eaten from minotaur
                     elif (i == k) and (j == l):
-                            rewards[s,a] = self.MINOUTAUR_REWARD;
+                            rewards[s,a] = self.MINOUTAUR_REWARD
                     # Reward for reaching the exit
                     elif self.maze[i,j] == 2:
-                        rewards[s,a] = self.GOAL_REWARD;
-                    # Reward for being in the moving range of the minotaur
-                    elif moving_range_of_minotaur:
-                        rewards[s,a] = self.NEAR_MINOUTAUR_REWARD;   
+                        rewards[s,a] = self.GOAL_REWARD
                     # Reward for taking a step to an empty cell that is not the exit
                     else:
-                        rewards[s,a] = self.STEP_REWARD;
+                        rewards[s,a] = self.STEP_REWARD
 
                     # If there exists trapped cells with probability 0.5
                     if random_rewards and self.maze[self.states[next_s]]<0:
@@ -223,7 +247,7 @@ class Maze:
 
         return rewards;
 
-    def simulate(self, start, policy, method, T):
+    def simulate(self, start, policy, method):
         if method not in methods:
             error = 'ERROR: the argument method must be in {}'.format(methods);
             raise NameError(error);
@@ -248,7 +272,7 @@ class Maze:
                 # Update time and state for next iteration
                 t +=1;
                 s = next_s;
-        if method == 'ValIter' or method =='PolIter':
+        if method == 'ValIter':
             # Initialize current state, next state and time
             t = 1;
             s = self.map[start];
@@ -263,7 +287,7 @@ class Maze:
             next_s = self.__move_minotaur(next_s);
             path.append(self.states[next_s])
             # Loop while state is not the goal state
-            while t < T:
+            while s != next_s:
                 # Update state
                 s = next_s;
                 # Move to next state given the policy and the current state
@@ -278,14 +302,14 @@ class Maze:
                 t +=1;
         return path
 
-    def sample(self, start, policy, method, T, nr):
+    def sample(self, start, policy, method, nr):
         # returns
         # 0 if eaten
         # 1 if escaped to the exit
         # 2 if only survived the T time steps
         samples = np.zeros(nr);
         for j in range(nr):
-            path = self.simulate(start, policy, method, T);
+            path = self.simulate(start, policy, method);
             if path[-1][0:2] == path[-1][2:4]:
                 samples[j] = 0
             elif self.maze[path[-1][0:2]] == 2:
@@ -411,56 +435,6 @@ def value_iteration(env, gamma, epsilon):
     # Return the obtained policy
     return V, policy;
 
-def policy_iteration(env, gamma):
-    """ Solves the shortest path problem using policy iteration
-        :input Maze env           : The maze environment in which we seek to
-                                    find the shortest path.
-        :input float gamma        : The discount factor.
-        :return numpy.array V     : Optimal values for every state at every
-                                    time, dimension S*T
-        :return numpy.array policy: Optimal time-varying policy at every state,
-                                    dimension S*T
-    """
-    # The value itearation algorithm requires the knowledge of :
-    # - Transition probabilities
-    # - Rewards
-    # - State space
-    # - Action space
-    # - The finite horizon    
-    p         = env.transition_probabilities
-    r         = env.rewards
-    n_states  = env.n_states
-    n_actions = env.n_actions
-
-    # Required variables and temporary ones for the VI to run
-    policy = np.zeros(n_states, dtype = int)
-    Bpolicy = np.ones(n_states, dtype = int)
-    V   = np.zeros(n_states)
-    Q   = np.zeros((n_states, n_actions))
-    
-    # Iteration counter
-    n   = 0;
- 
-    # Iterate until convergence
-    while (not (policy == Bpolicy).all()):
-        # Increment by one the numbers of iteration
-        n += 1;
-        policy = Bpolicy
-        # Update the value function (policy evaluation)
-        for s in range(n_states):
-            V[s] = r[s, policy[s]] + gamma*np.dot(p[:,s,policy[s]],V);
-        
-        # Policy improvement
-        for s in range(n_states):
-            for a in range(n_actions):
-                Q[s,a] = r[s, a] + gamma*np.dot(p[:,s,a],V);
-        Bpolicy = np.argmax(Q,1);
-        # Show error
-        #print(n,": ",np.linalg.norm(policy - Bpolicy))
-    
-    # Return the obtained policy
-    return V, policy;
-
 def draw_maze(maze):
 
     # Map a color to each cell in the maze
@@ -556,7 +530,7 @@ def animate_solution(maze, path):
             if player_now == minotaur_now:
                 # The player goes to the minotaur and gets eaten
                 grid.get_celld()[(player_now)].set_facecolor(LIGHT_ORANGE)
-                grid.get_celld()[(player_now)].get_text().set_text('Player')
+                grid.get_celld()[(player_now)].get_text().set_text('Player'+ str(i))
                 grid.get_celld()[(player_now)].set_facecolor(RED)
                 grid.get_celld()[(player_now)].get_text().set_text('EATEN')
                 flagg = True
@@ -568,7 +542,7 @@ def animate_solution(maze, path):
             else:
                 # The player does normal move
                 grid.get_celld()[(player_now)].set_facecolor(LIGHT_ORANGE)
-                grid.get_celld()[(player_now)].get_text().set_text('Player')
+                grid.get_celld()[(player_now)].get_text().set_text('Player'+ str(i))
             if not player_now == player_before:
                 # Reset the color of last position
                 grid.get_celld()[(player_before)].set_facecolor(col_map[maze[player_before]])
@@ -593,4 +567,4 @@ def animate_solution(maze, path):
         display.clear_output(wait=True)
         if flagg:
             break
-        time.sleep(0.3)
+        time.sleep(0.1)
