@@ -37,8 +37,8 @@ class Maze:
     STEP_REWARD = 0
     GOAL_REWARD = 1
     IMPOSSIBLE_REWARD = -100
-    POLICE_REWARD = -80
-    NEAR_POLICE_REWARD = -20
+    POLICE_REWARD = -10
+    NEAR_POLICE_REWARD = -2-5
 
     def __init__(self, maze, weights=None, random_rewards=False):
         """ Constructor of the environment Maze.
@@ -493,11 +493,9 @@ def SARSA(env, gamma, epsilon):
         :input Maze env           : The maze environment in which we seek to
                                     find the shortest path.
         :input float gamma        : The discount factor.
-        :param float alpha_t      : Step size
-        :return numpy.array V     : Optimal values for every state at every
-                                    time, dimension S*T
-        :return numpy.array policy: Optimal time-varying policy at every state,
-                                    dimension S*T
+        :param float alpha_t      : learning rate
+        :return numpy.array Q     : Learned (state, action) function values corresponding to the behaviour policy
+        :return numpy.array policy: learned behaviour policy
     """
     # The value itearation algorithm requires the knowledge of :
     # - Transition probabilities
@@ -514,22 +512,27 @@ def SARSA(env, gamma, epsilon):
     Q = np.zeros([n_states, n_actions])
     n = np.zeros([n_states, n_actions])
     plot_s = list()
-    s_t = 3
-    for t in range(10000000):
-        if np.random.rand() <= epsilon:
-            a_t = round(np.random.rand()*4)
-        else:
-            a_t = np.argmax(Q[s_t])
-        n[s_t, a_t] += 1 
+    s_t = 0
+    a_t = round(np.random.rand()*4)
+    for t in range(20000000):
+
+        n[s_t, a_t] += 1
+        # Observe reward
         r_t = r[s_t,a_t]
+        # Observe new state after taking action a_t from s_t
         s_next = env._Maze__move(s_t, a_t)
         s_next = env._Maze__move_police(s_next)
-        
+        # Select the next planned action
+        if np.random.rand() <= epsilon:
+            a_next = round(np.random.rand()*4)
+        else:
+            a_next = np.argmax(Q[s_t])
         # Update Q(s_t, a_t)
         alpha = 1 / np.power(n[s_t,a_t],2/3)   
-        Q[s_t,a_t] = Q[s_t,a_t] + alpha * (r_t + gamma*np.max(Q[s_next]) - Q[s_t,a_t])
+        Q[s_t,a_t] = Q[s_t,a_t] + alpha * (r_t + gamma*Q[s_next,a_next] - Q[s_t,a_t])
         s_t = s_next
-        if t%10 == 0:
+        a_t = a_next
+        if t%100 == 0:
             plot_s.append(np.max(Q[0]))
     policy = np.argmax(Q,1)
     plt.plot(plot_s)
