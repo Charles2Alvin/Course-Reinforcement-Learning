@@ -122,6 +122,7 @@ class Maze:
         l = self.states[state][3];
         # Random action
         action = round(np.random.rand()*4);
+        #action = round(np.random.rand()*3)+1;
         
         # Is the future position an impossible one ?
         row = k + self.actions[action][0];
@@ -178,10 +179,11 @@ class Maze:
                     k = self.states[next_s][2];
                     l = self.states[next_s][3];
                     if s == next_s and a != self.STAY:
-                        # Reward for exiting the maze
+                        # Reward for getting eaten
                         if (i == k) and (j == l):
                             rewards[s,a] = self.MINOUTAUR_REWARD;
                             #rewards[s,a] = 0
+                        # Reward for exiting
                         elif (self.maze[i,j] == 2):
                             rewards[s,a] = self.GOAL_REWARD;
                             #rewards[s,a] = 0

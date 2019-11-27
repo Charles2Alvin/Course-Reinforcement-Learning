@@ -37,7 +37,7 @@ class Maze:
     STEP_REWARD = -1
     GOAL_REWARD = 0
     IMPOSSIBLE_REWARD = -100
-    MINOUTAUR_REWARD = -30
+    MINOUTAUR_REWARD = -80
 
     def __init__(self, maze, weights=None, random_rewards=False):
         """ Constructor of the environment Maze.
@@ -151,8 +151,8 @@ class Maze:
         k = self.states[state][2];
         l = self.states[state][3];
         # Random action
+        #action = round(np.random.rand()*3)+1;
         action = round(np.random.rand()*4);
-        
         # Is the future position an impossible one ?
         row = k + self.actions[action][0];
         col = l + self.actions[action][1];
@@ -186,9 +186,10 @@ class Maze:
         for s in range(self.n_states):
             for a in range(self.n_actions):
                 next_s = self.__move(s,a);
-                for a_hat in range(self.n_actions):
+                for a_hat in range(1,self.n_actions):
                     next_s_hat = self.__move(next_s,a_hat);
                     transition_probabilities[next_s_hat, s, a] += 1/self.n_actions
+                    #transition_probabilities[next_s_hat, s, a] += 1/(self.n_actions-1)
         return transition_probabilities;
 
     def __rewards(self, weights=None, random_rewards=None):
@@ -247,7 +248,7 @@ class Maze:
 
         return rewards;
 
-    def simulate(self, start, policy, method):
+    def simulate(self, start, policy, method, T):
         if method not in methods:
             error = 'ERROR: the argument method must be in {}'.format(methods);
             raise NameError(error);
@@ -272,7 +273,7 @@ class Maze:
                 # Update time and state for next iteration
                 t +=1;
                 s = next_s;
-        if method == 'ValIter':
+        if method == 'ValIter' or method =='PolIter':
             # Initialize current state, next state and time
             t = 1;
             s = self.map[start];
@@ -287,7 +288,7 @@ class Maze:
             next_s = self.__move_minotaur(next_s);
             path.append(self.states[next_s])
             # Loop while state is not the goal state
-            while s != next_s:
+            while t < T:
                 # Update state
                 s = next_s;
                 # Move to next state given the policy and the current state
@@ -302,14 +303,14 @@ class Maze:
                 t +=1;
         return path
 
-    def sample(self, start, policy, method, nr):
+    def sample(self, start, policy, method, T, nr):
         # returns
         # 0 if eaten
         # 1 if escaped to the exit
         # 2 if only survived the T time steps
         samples = np.zeros(nr);
         for j in range(nr):
-            path = self.simulate(start, policy, method);
+            path = self.simulate(start, policy, method, T);
             if path[-1][0:2] == path[-1][2:4]:
                 samples[j] = 0
             elif self.maze[path[-1][0:2]] == 2:
