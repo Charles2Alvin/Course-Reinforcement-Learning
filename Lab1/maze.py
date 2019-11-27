@@ -122,7 +122,7 @@ class Maze:
         l = self.states[state][3];
         # Random action
         action = round(np.random.rand()*4);
-        #action = round(np.random.rand()*3)+1;
+        action = round(np.random.rand()*3)+1;
         
         # Is the future position an impossible one ?
         row = k + self.actions[action][0];
@@ -222,9 +222,59 @@ class Maze:
                      i,j = self.states[next_s];
                      # Simply put the reward as the weights o the next state.
                      rewards[s,a] = weights[i][j];
-
         return rewards;
+    
+    def draw_maze(self,maze, minotaur, policy):
+        # Map a color to each cell in the maze
+        col_map = {0: WHITE, 1: BLACK, 2: LIGHT_GREEN, 3: RED, 5: LIGHT_ORANGE};
+    
+        # Give a color to each cell
+        rows,cols    = maze.shape;
+        colored_maze = [[col_map[maze[j,i]] for i in range(cols)] for j in range(rows)];
+        
+        # Create figure of the size of the maze
+        fig = plt.figure(1, figsize=(cols,rows));
+    
+        # Remove the axis ticks and add title title
+        ax = plt.gca();
+        ax.set_title('The Maze');
+        ax.set_xticks([]);
+        ax.set_yticks([]);
 
+        # Give a color to each cell
+        rows,cols    = maze.shape;
+        colored_maze = [[col_map[maze[j,i]] for i in range(cols)] for j in range(rows)];
+    
+        # Create figure of the size of the maze
+        fig = plt.figure(1, figsize=(cols,rows))
+
+        # Create a table to color
+        grid = plt.table(cellText=None,
+                                cellColours=colored_maze,
+                                cellLoc='center',
+                                loc=(0,0),
+                                edges='closed');
+        # Modify the hight and width of the cells in the table
+        tc = grid.properties()['child_artists']
+        for cell in tc:
+            cell.set_height(1.0/rows);
+            cell.set_width(1.0/cols);
+    
+        col_map = {0: '*', 1: '⇠', 2: '⇢', 3: '⇡' , 4: '⇣'};
+        k = minotaur[0]
+        l = minotaur[1]
+        for i in range(rows):
+            for j in range(cols):
+                if maze[i,j] == 0:
+                #i = self.states[s][0]
+                #j = self.states[s][1]
+                    grid.get_celld()[(i,j)].get_text().set_text(col_map[policy[(self.map[(i,j,k,l)]),0]])
+                #grid.get_celld()[(player_now)].get_text().set_text('Player')
+            
+            
+        
+        
+        
     def simulate(self, start, policy, method, T):
         if method not in methods:
             error = 'ERROR: the argument method must be in {}'.format(methods);
