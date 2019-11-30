@@ -35,7 +35,8 @@ class Maze:
 
     # Reward values
     STEP_REWARD = -1
-    GOAL_REWARD = 0
+    GOAL_REWARD = 0 # Less agressive
+    #GOAL_REWARD = 30 # More agressive tries to minimize time of exit
     IMPOSSIBLE_REWARD = -100
     MINOUTAUR_REWARD = -80
 
@@ -201,8 +202,8 @@ class Maze:
             for s in range(self.n_states):
                 for a in range(self.n_actions):
                     next_s = self.__move(s,a);                    
-                    i = self.states[next_s][0];
-                    j = self.states[next_s][1];
+                    i = self.states[next_s][0]
+                    j = self.states[next_s][1]
                     k = self.states[next_s][2]
                     l = self.states[next_s][3]
                     # If terminal state or hitting wall
@@ -264,12 +265,21 @@ class Maze:
             path.append(start);
             while t < horizon-1:
                 # Move to next state given the policy and the current state
-                next_s = self.__move(s,policy[s,t]);
+                next_s = self.__move(s,policy[s,t]);                
                 # Add the position in the maze corresponding to the next state after action from policy
                 path.append(self.states[next_s])
                 # Add the position in the maze corresponding to the next state after random move of minotaur
                 next_s = self.__move_minotaur(next_s);
                 path.append(self.states[next_s])
+                ## Check if terminal state
+                i = self.states[next_s][0]
+                j = self.states[next_s][1]
+                k = self.states[next_s][2]
+                l = self.states[next_s][3]
+                # Have we arrived at the exit(terminal state) ?
+                arrived_exit = (self.maze[i,j] == 2);
+                if arrived_exit:
+                    break
                 # Update time and state for next iteration
                 t +=1;
                 s = next_s;
@@ -299,6 +309,17 @@ class Maze:
                 # Add the position in the maze corresponding to the next state after random move of minotaur
                 next_s = self.__move_minotaur(next_s);
                 path.append(self.states[next_s])
+                ## Check if terminal state
+                i = self.states[next_s][0]
+                j = self.states[next_s][1]
+                k = self.states[next_s][2]
+                l = self.states[next_s][3]
+                # Have we arrived at the exit(terminal state) ?
+                arrived_exit = (self.maze[i,j] == 2);
+                # Have we bin eaten by the minotaur(terminal state)
+                eaten = (i == k) and (j == l);
+                if arrived_exit or eaten:
+                    break
                 # Update time and state for next iteration
                 t +=1;
         return path
@@ -309,6 +330,7 @@ class Maze:
         # 1 if escaped to the exit
         # 2 if only survived the T time steps
         samples = np.zeros(nr);
+        timeofexit = np.zeros(nr)
         for j in range(nr):
             path = self.simulate(start, policy, method, T);
             if path[-1][0:2] == path[-1][2:4]:
@@ -317,11 +339,13 @@ class Maze:
                 samples[j] = 1
             else:
                 samples[j] = 2
+            timeofexit[j] = len(path)
 
-        eaten = sum(samples==0) / nr;
-        exited = sum(samples==1) / nr;
-        survived = sum(samples==2) / nr;
-        return (eaten, exited, survived, samples)
+        eaten = sum(samples==0) / nr
+        exited = sum(samples==1) / nr
+        survived = sum(samples==2) / nr
+        expected_time = sum(timeofexit) / (2*nr)
+        return (eaten, exited, survived, expected_time)
 
     def show(self):
         print('The states are :')

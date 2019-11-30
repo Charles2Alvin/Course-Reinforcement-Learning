@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 from IPython import display
+from tqdm import tqdm_notebook as tqdm
+tqdm().pandas()
 
 # Implemented methods
 methods = ['DynProg', 'ValIter', 'PolIter'];
@@ -37,10 +39,9 @@ class Maze:
     STEP_REWARD = 0
     GOAL_REWARD = 1
     IMPOSSIBLE_REWARD = -100
-    POLICE_REWARD = -10
-    NEAR_POLICE_REWARD = -2-5
+    MINOUTAUR_REWARD = -10
 
-    def __init__(self, maze, weights=None, random_rewards=False):
+    def __init__(self, maze):
         """ Constructor of the environment Maze.
         """
         self.maze                     = maze;
@@ -49,8 +50,7 @@ class Maze:
         self.n_actions                = len(self.actions);
         self.n_states                 = len(self.states);
         self.transition_probabilities = self.__transitions();
-        self.rewards                  = self.__rewards(weights=weights,
-                                                random_rewards=random_rewards);
+        self.rewards                  = self.__rewards();
 
     def __actions(self):
         actions = dict();
@@ -143,63 +143,64 @@ class Maze:
             for a in range(self.n_actions):
                 next_s = self.__move(s,a);
                 transition_probabilities[next_s, s, a] = 1;
-        return transition_probabilities;
+        return transition_probabilities
+    
+    def sarsa_reward(self,s,a):
+        r = 0
+        next_s = self.__move(s, a)
+        i = self.states[next_s][0]
+        j = self.states[next_s][1]
+        k = self.states[next_s][2]
+        l = self.states[next_s][3]
+        if s == next_s and a != self.STAY:
+            r += self.IMPOSSIBLE_REWARD
+        if i == k and j == l:
+            r += self.MINOUTAUR_REWARD
+        next_s = self.__move_police(next_s)
+        
+        i = self.states[next_s][0]
+        j = self.states[next_s][1]
+        k = self.states[next_s][2]
+        l = self.states[next_s][3]
+        if i == k and j == l:
+            r = self.MINOUTAUR_REWARD
+        if self.maze[i,j] == 2:
+            r += self.GOAL_REWARD
+        return r, next_s
+            
+    def __rewards(self):
 
-    def __rewards(self, weights=None, random_rewards=None):
-
-        rewards = np.zeros((self.n_states, self.n_actions));
+        rewards = np.zeros((self.n_states, self.n_actions))
 
         # If the rewards are not described by a weight matrix
-        if weights is None:
-            for s in range(self.n_states):
-                for a in range(self.n_actions):
-                    next_s = self.__move(s,a);
-                    i = self.states[next_s][0];
-                    j = self.states[next_s][1];
-                    k = self.states[next_s][2];
-                    l = self.states[next_s][3];
-                    # Calculating if next state is in moving range of police
-                    dx = np.abs(i - k);
-                    dy = np.abs(j - l);
-                    moving_range_of_police =  ((dx == 1) and (dy == 0)) or ((dx == 0) and (dy == 1));
-                    # hitting wall
+        
+        for s in range(self.n_states):
+            for a in range(self.n_actions):
+                next_s = self.__move(s,a) # player takes deterministical action a         
+                i = self.states[s][0]
+                j = self.states[s][1]
+                k = self.states[s][2]
+                l = self.states[s][3]
+                if i==k and j==l:
+                    rewards[s,a] = self.MINOUTAUR_REWARD
+                else:
+                    i = self.states[next_s][0]
+                    j = self.states[next_s][1]
+                    k = self.states[next_s][2]
+                    l = self.states[next_s][3]                
+
                     if s == next_s and a != self.STAY:
-                        rewards[s,a] = self.IMPOSSIBLE_REWARD
-                    # Reward for stealing bank
-                    elif self.maze[i,j] == 2:
-                        rewards[s,a] = self.GOAL_REWARD
-                        if (i == k) and (j == l):
-                            rewards[s,a] += self.POLICE_REWARD
-                        if moving_range_of_police:
-                            rewards[s,a] += self.NEAR_POLICE_REWARD
-                    # Reward for being catched from police
+                        # Reward for hitting a wall
+                        rewards[s,a] += self.IMPOSSIBLE_REWARD
+                    # Reward for getting caught from police
                     elif (i == k) and (j == l):
-                        rewards[s,a] = self.POLICE_REWARD
-                    # Reward for being in the moving range of the police
-                    elif moving_range_of_police:
-                        rewards[s,a] = self.NEAR_POLICE_REWARD
+                        rewards[s,a] += self.MINOUTAUR_REWARD
+                    # Reward for being at the banks
+                    elif self.maze[i,j] == 2:
+                        rewards[s,a] += self.GOAL_REWARD
                     # Reward for taking a step to an empty cell that is not the exit
                     else:
-                        rewards[s,a] = self.STEP_REWARD
-
-                    # If there exists trapped cells with probability 0.5
-                    if random_rewards and self.maze[self.states[next_s]]<0:
-                        row, col = self.states[next_s];
-                        # With probability 0.5 the reward is
-                        r1 = (1 + abs(self.maze[row, col])) * rewards[s,a];
-                        # With probability 0.5 the reward is
-                        r2 = rewards[s,a];
-                        # The average reward
-                        rewards[s,a] = 0.5*r1 + 0.5*r2;
-        # If the weights are described by a weight matrix
-        else:
-            for s in range(self.n_states):
-                 for a in range(self.n_actions):
-                     next_s = self.__move(s,a);
-                     i,j = self.states[next_s];
-                     # Simply put the reward as the weights o the next state.
-                     rewards[s,a] = weights[i][j];
-
+                        rewards[s,a] += self.STEP_REWARD;
         return rewards;
 
     def simulate(self, start, policy, method,T):
@@ -444,7 +445,7 @@ def update_line(hl, new_data):
     hl.set_ydata(numpy.append(hl.get_ydata(), new_data))
     plt.draw()
 
-def Q_learning(env, gamma):
+def Q_learning(env, gamma, nr):
     """ Solves the shortest path problem using value iteration
         :input Maze env           : The maze environment in which we seek to
                                     find the shortest path.
@@ -470,25 +471,29 @@ def Q_learning(env, gamma):
     Q = np.zeros([n_states, n_actions])
     n = np.zeros([n_states, n_actions])
     plot_s = list()
-    s_t = 3
-    for t in range(10000000):
+    plot_t = list()
+    s_t = env.map[(0,0,3,3)]
+    for t in tqdm(list(range(nr))):
         a_t = round(np.random.rand()*4)
         n[s_t, a_t] += 1 
-        r_t = r[s_t,a_t]
-        s_next = env._Maze__move(s_t, a_t)
-        s_next = env._Maze__move_police(s_next)
+        r_t, s_next = env.sarsa_reward(s_t,a_t)
         # Update Q(s_t, a_t)
-        alpha = 1 / np.power(n[s_t,a_t],2/3)   
+        alpha = 1 / np.power(n[s_t,a_t],2/3)
         Q[s_t,a_t] = Q[s_t,a_t] + alpha * (r_t + gamma*np.max(Q[s_next]) - Q[s_t,a_t])
         s_t = s_next
-        if t%10 == 0:
-            plot_s.append(np.max(Q[0]))
+        if t%100 == 0:
+            plot_s.append(np.max(Q[env.map[(0,0,3,3)]]))
+            plot_t.append(t)
     policy = np.argmax(Q,1)
-    plt.plot(plot_s)
+    plt.style.use('seaborn-darkgrid')
+    plt.plot(plot_t, plot_s)
+    plt.xlabel("Number of iterations")
+    plt.ylabel("Evolution of Value Function")
     plt.show()
     return Q, policy
 
-def SARSA(env, gamma, epsilon):
+
+def SARSA(env, gamma, epsilon, nr):
     """ Solves the shortest path problem using value iteration
         :input Maze env           : The maze environment in which we seek to
                                     find the shortest path.
@@ -512,30 +517,30 @@ def SARSA(env, gamma, epsilon):
     Q = np.zeros([n_states, n_actions])
     n = np.zeros([n_states, n_actions])
     plot_s = list()
-    s_t = 0
-    a_t = round(np.random.rand()*4)
-    for t in range(20000000):
-
-        n[s_t, a_t] += 1
-        # Observe reward
-        r_t = r[s_t,a_t]
-        # Observe new state after taking action a_t from s_t
-        s_next = env._Maze__move(s_t, a_t)
-        s_next = env._Maze__move_police(s_next)
+    plot_t = list()
+    s_t = env.map[(0,0,3,3)]
+    a_t = np.random.randint(5)
+    for t in tqdm(list(range(nr))):
+        n[s_t, a_t] += 1     
+        r_t, s_next = env.sarsa_reward(s_t,a_t)
         # Select the next planned action
         if np.random.rand() <= epsilon:
-            a_next = round(np.random.rand()*4)
+            a_next = np.random.randint(5)
         else:
-            a_next = np.argmax(Q[s_t])
+            a_next = np.argmax(Q[s_next])
         # Update Q(s_t, a_t)
-        alpha = 1 / np.power(n[s_t,a_t],2/3)   
+        alpha = 1 / np.power(n[s_t,a_t],2/3)
         Q[s_t,a_t] = Q[s_t,a_t] + alpha * (r_t + gamma*Q[s_next,a_next] - Q[s_t,a_t])
         s_t = s_next
         a_t = a_next
         if t%100 == 0:
-            plot_s.append(np.max(Q[0]))
+            plot_s.append(np.max(Q[env.map[(0,0,3,3)]]))
+            plot_t.append(t)
     policy = np.argmax(Q,1)
-    plt.plot(plot_s)
+    plt.style.use('seaborn-darkgrid')
+    plt.plot(plot_t, plot_s)
+    plt.xlabel("Number of iterations")
+    plt.ylabel("Evolution of Value Function")
     plt.show()
     return Q, policy
 
@@ -642,6 +647,7 @@ def animate_solution(maze, path):
                 # The player escapes
                 grid.get_celld()[(player_now)].set_facecolor(LIGHT_GREEN)
                 grid.get_celld()[(player_now)].get_text().set_text('FINISH')
+                grid.get_celld()[(player_now)].get_text().set_text('Player'+str(round(i/2)))
             else:
                 # The player does normal move
                 grid.get_celld()[(player_now)].set_facecolor(LIGHT_ORANGE)
@@ -660,6 +666,7 @@ def animate_solution(maze, path):
                 # The minotaur does a normal move
                 grid.get_celld()[(minotaur_now)].set_facecolor(RED)
                 grid.get_celld()[(minotaur_now)].get_text().set_text('Minotaur')
+                
             if not minotaur_now == minotaur_before:
                 # Reset the color of last position
                 grid.get_celld()[(minotaur_before)].set_facecolor(col_map[maze[minotaur_before]])
