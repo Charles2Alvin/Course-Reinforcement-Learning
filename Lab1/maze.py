@@ -35,11 +35,12 @@ class Maze:
 
     # Reward values
     STEP_REWARD = -1
-    GOAL_REWARD = 0
+    GOAL_REWARD = 0 # Less agressive
+    #GOAL_REWARD = 30 # More agressive tries to minimize time of exit
     IMPOSSIBLE_REWARD = -100
     MINOUTAUR_REWARD = -80
     NEAR_MINOUTAUR_REWARD = -20
-
+    
     def __init__(self, maze, weights=None, random_rewards=False):
         """ Constructor of the environment Maze.
         """
@@ -121,7 +122,11 @@ class Maze:
         k = self.states[state][2];
         l = self.states[state][3];
         # Random action
+<<<<<<< HEAD
         # action = round(np.random.rand()*4);
+=======
+        action = round(np.random.rand()*4);
+>>>>>>> 92b400dd440e9a974dc70a53706eb6ba58f4537b
         action = round(np.random.rand()*3)+1;
         
         # Is the future position an impossible one ?
@@ -222,9 +227,59 @@ class Maze:
                      i,j = self.states[next_s];
                      # Simply put the reward as the weights o the next state.
                      rewards[s,a] = weights[i][j];
-
         return rewards;
+    
+    def draw_maze(self,maze, minotaur, policy):
+        # Map a color to each cell in the maze
+        col_map = {0: WHITE, 1: BLACK, 2: LIGHT_GREEN, 3: RED, 5: LIGHT_ORANGE};
+    
+        # Give a color to each cell
+        rows,cols    = maze.shape;
+        colored_maze = [[col_map[maze[j,i]] for i in range(cols)] for j in range(rows)];
+        
+        # Create figure of the size of the maze
+        fig = plt.figure(1, figsize=(cols,rows));
+    
+        # Remove the axis ticks and add title title
+        ax = plt.gca();
+        ax.set_title('The Maze');
+        ax.set_xticks([]);
+        ax.set_yticks([]);
 
+        # Give a color to each cell
+        rows,cols    = maze.shape;
+        colored_maze = [[col_map[maze[j,i]] for i in range(cols)] for j in range(rows)];
+    
+        # Create figure of the size of the maze
+        fig = plt.figure(1, figsize=(cols,rows))
+
+        # Create a table to color
+        grid = plt.table(cellText=None,
+                                cellColours=colored_maze,
+                                cellLoc='center',
+                                loc=(0,0),
+                                edges='closed');
+        # Modify the hight and width of the cells in the table
+        tc = grid.properties()['child_artists']
+        for cell in tc:
+            cell.set_height(1.0/rows);
+            cell.set_width(1.0/cols);
+    
+        col_map = {0: '*', 1: '⇠', 2: '⇢', 3: '⇡' , 4: '⇣'};
+        k = minotaur[0]
+        l = minotaur[1]
+        for i in range(rows):
+            for j in range(cols):
+                if maze[i,j] == 0:
+                #i = self.states[s][0]
+                #j = self.states[s][1]
+                    grid.get_celld()[(i,j)].get_text().set_text(col_map[policy[(self.map[(i,j,k,l)]),0]])
+                #grid.get_celld()[(player_now)].get_text().set_text('Player')
+            
+            
+        
+        
+        
     def simulate(self, start, policy, method, T):
         if method not in methods:
             error = 'ERROR: the argument method must be in {}'.format(methods);
@@ -247,6 +302,15 @@ class Maze:
                 # Add the position in the maze corresponding to the next state after random move of minotaur
                 next_s = self.__move_minotaur(next_s);
                 path.append(self.states[next_s])
+                ## Check if terminal state
+                i = self.states[next_s][0]
+                j = self.states[next_s][1]
+                k = self.states[next_s][2]
+                l = self.states[next_s][3]
+                # Have we arrived at the exit(terminal state) ?
+                arrived_exit = (self.maze[i,j] == 2);
+                if arrived_exit:
+                    break
                 # Update time and state for next iteration
                 t +=1;
                 s = next_s;
@@ -276,6 +340,17 @@ class Maze:
                 # Add the position in the maze corresponding to the next state after random move of minotaur
                 next_s = self.__move_minotaur(next_s);
                 path.append(self.states[next_s])
+                ## Check if terminal state
+                i = self.states[next_s][0]
+                j = self.states[next_s][1]
+                k = self.states[next_s][2]
+                l = self.states[next_s][3]
+                # Have we arrived at the exit(terminal state) ?
+                arrived_exit = (self.maze[i,j] == 2);
+                # Have we bin eaten by the minotaur(terminal state)
+                eaten = (i == k) and (j == l);
+                if arrived_exit or eaten:
+                    break
                 # Update time and state for next iteration
                 t +=1;
         return path
@@ -285,7 +360,8 @@ class Maze:
         # 0 if eaten
         # 1 if escaped to the exit
         # 2 if only survived the T time steps
-        samples = np.zeros(nr);
+        samples = np.zeros(nr)
+        timeofexit = np.zeros(nr)
         for j in range(nr):
             path = self.simulate(start, policy, method, T);
             if path[-1][0:2] == path[-1][2:4]:
@@ -294,11 +370,14 @@ class Maze:
                 samples[j] = 1
             else:
                 samples[j] = 2
-
-        eaten = sum(samples==0) / nr;
-        exited = sum(samples==1) / nr;
-        survived = sum(samples==2) / nr;
-        return (eaten, exited, survived, samples)
+            timeofexit[j] = len(path)
+            
+            
+        eaten = sum(samples==0) / nr
+        exited = sum(samples==1) / nr
+        survived = sum(samples==2) / nr
+        expected_time = sum(timeofexit) / (2*nr)
+        return (eaten, exited, survived, expected_time)
 
     def show(self):
         print('The states are :')
