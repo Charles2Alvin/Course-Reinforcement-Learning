@@ -151,8 +151,8 @@ class Maze:
         k = self.states[state][2];
         l = self.states[state][3];
         # Random action
-        #action = round(np.random.rand()*3)+1;
-        action = round(np.random.rand()*4);
+        action = round(np.random.rand()*3)+1;
+        # action = round(np.random.rand()*4);
         # Is the future position an impossible one ?
         row = k + self.actions[action][0];
         col = l + self.actions[action][1];
@@ -188,8 +188,8 @@ class Maze:
                 next_s = self.__move(s,a);
                 for a_hat in range(1,self.n_actions):
                     next_s_hat = self.__move(next_s,a_hat);
-                    transition_probabilities[next_s_hat, s, a] += 1/self.n_actions
-                    #transition_probabilities[next_s_hat, s, a] += 1/(self.n_actions-1)
+                    # transition_probabilities[next_s_hat, s, a] += 1/self.n_actions
+                    transition_probabilities[next_s_hat, s, a] += 1/(self.n_actions-1)
         return transition_probabilities;
 
     def __rewards(self, weights=None, random_rewards=None):

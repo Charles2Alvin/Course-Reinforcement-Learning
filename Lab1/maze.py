@@ -121,8 +121,8 @@ class Maze:
         k = self.states[state][2];
         l = self.states[state][3];
         # Random action
-        action = round(np.random.rand()*4);
-        #action = round(np.random.rand()*3)+1;
+        # action = round(np.random.rand()*4);
+        action = round(np.random.rand()*3)+1;
         
         # Is the future position an impossible one ?
         row = k + self.actions[action][0];
